@@ -3204,7 +3204,10 @@ S_scan_const(pTHX_ char *start)
                          * a '-' would be ambiguous). */
 
                         if (off + extra > SvLEN(sv)) {
+                            STRLEN max_ptr_off = max_ptr - SvPVX(sv);
+
                             d = off + SvGROW(sv, off + extra);
+                            max_ptr = d - off + max_ptr_off;
                         }
 
                         e = d++;
