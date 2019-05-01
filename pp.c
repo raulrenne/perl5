@@ -1991,11 +1991,48 @@ static IV S_iv_shift(IV iv, int shift, bool left)
         shift = -shift;
         left = !left;
     }
+    else if (UNLIKELY(shift == 0)) {
+        return iv;
+    }
+
     if (UNLIKELY(shift >= IV_BITS)) {
         return iv < 0 && !left ? -1 : 0;
     }
 
-    return left ? iv << shift : iv >> shift;
+    /* For left shifts, perl has chosen to treat the value as unsigned for the
+     * purposes of shifting, then cast back to signed */
+    if (left) {
+        if (iv == IV_MIN) { /* Casting this to a UV is undefined behavior */
+            return 0;
+        }
+        return (IV) (((UV) iv) << shift);
+    }
+
+    /* Here is right shift */
+    if (iv < 0) {
+
+        /* For negative values, perl is expecting the sign to be extended.  But
+         * this is not guaranteed by the C standard.  So make sure this gets
+         * done by creating a mask with the upper bits 1, and ORing it with the
+         * shifted value.  XXX A Configure probe could be written to see if
+         * this code is actually needed on the current platform. */
+        UV shifted = iv >> shift;
+
+        /* Suppose the int size is just 8 bits, and we are shifting right 3.
+         * The next line creates
+         * 1 << 5, or  00100000 */
+        UV mask = 1UL << ((IVSIZE * CHARBITS) - shift);
+
+        /* Converts to 00011111 */
+        mask--;
+
+        /* Converts to 11100000 */
+        mask = ~mask;
+
+        return (IV) (mask | shifted);
+    }
+
+    return iv >> shift;
 }
 
 #define UV_LEFT_SHIFT(uv, shift) S_uv_shift(uv, shift, TRUE)
