@@ -156,15 +156,16 @@ Perl_safesysmalloc(MEM_SIZE size)
 #endif
     PERL_ALLOC_CHECK(ptr);
     if (ptr != NULL) {
+#ifdef USE_MDH
+	struct perl_memory_debug_header *const header
+	    = (struct perl_memory_debug_header *)ptr;
+#endif
+
         /* malloc() can modify errno() even on success, but since someone
 	   writing perl code doesn't have any control over when perl calls
 	   malloc() we need to hide that.
 	*/
         RESTORE_ERRNO;
-#ifdef USE_MDH
-	struct perl_memory_debug_header *const header
-	    = (struct perl_memory_debug_header *)ptr;
-#endif
 
 #ifdef PERL_POISON
 	PoisonNew(((char *)ptr), size, char);
@@ -284,14 +285,18 @@ Perl_safesysrealloc(Malloc_t where,MEM_SIZE size)
        might allocate memory/free/move memory, and until we do the fixup, it
        may well be chasing (and writing to) free memory.  */
 	if (ptr != NULL) {
+#ifdef PERL_TRACK_MEMPOOL
+	    struct perl_memory_debug_header *const header
+		= (struct perl_memory_debug_header *)ptr;
+#endif
+
 	    /* realloc() can modify errno() even on success, but since someone
 	       writing perl code doesn't have any control over when perl calls
 	       realloc() we need to hide that.
 	    */
 	    RESTORE_ERRNO;
+
 #ifdef PERL_TRACK_MEMPOOL
-	    struct perl_memory_debug_header *const header
-		= (struct perl_memory_debug_header *)ptr;
 
 #  ifdef PERL_POISON
 	    if (header->size < size) {
